@@ -5,6 +5,8 @@
 import argparse
 import json
 import os
+import sys
+
 import numpy as np
 import tensorflow as tf
 import time
@@ -28,6 +30,10 @@ parser.add_argument('--dataset', metavar='PATH', type=str, required=True, help='
 parser.add_argument('--model_name', metavar='MODEL', type=str, default='117M', help='Pretrained model name')
 parser.add_argument('--combine', metavar='CHARS', type=int, default=50000, help='Concatenate input files with <|endoftext|> separator into chunks of this minimum size')
 parser.add_argument('--encoding', type=str, default='utf-8', help='Set the encoding for reading and writing files.')
+
+parser.add_argument("--bpe", type=bool, default=True)
+parser.add_argument("--vocabulary", type=str, metavar="PATH",
+                    help="Specify an explicit vocabulary file for the encoder.")
 
 parser.add_argument('--batch_size', metavar='SIZE', type=int, default=1, help='Batch size')
 parser.add_argument('--learning_rate', metavar='LR', type=float, default=0.00002, help='Learning rate for Adam')
@@ -71,7 +77,14 @@ def randomize(context, hparams, p):
 
 def main():
     args = parser.parse_args()
-    enc = encoder.get_encoder(args.model_name)
+
+    if args.bpe:
+        enc = encoder.get_encoder(args.model_name)
+    else:
+        with open(args.vocabulary, "r") as f:
+            vocab = json.load(f)
+        enc = encoder.DisabledEncoder(vocab)
+
     hparams = model.default_hparams()
     with open(os.path.join('models', args.model_name, 'hparams.json')) as f:
         hparams.override_from_dict(json.load(f))
@@ -163,12 +176,13 @@ def main():
                 ckpt = tf.train.latest_checkpoint(
                     os.path.join('models', args.model_name))
         elif args.restore_from == 'fresh':
-            ckpt = tf.train.latest_checkpoint(
-                os.path.join('models', args.model_name))
+            ckpt = None
         else:
             ckpt = tf.train.latest_checkpoint(args.restore_from)
-        print('Loading checkpoint', ckpt)
-        saver.restore(sess, ckpt)
+
+        if ckpt is not None:
+            print('Loading checkpoint', ckpt)
+            saver.restore(sess, ckpt)
 
         print('Loading dataset...')
         chunks = load_dataset(enc, args.dataset, args.combine, encoding=args.encoding)

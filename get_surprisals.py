@@ -29,6 +29,10 @@ parser.add_argument('--model_name', metavar='MODEL', type=str, default='117M', h
 parser.add_argument('--combine', metavar='CHARS', type=int, default=50000, help='Concatenate input files with <|endoftext|> separator into chunks of this minimum size')
 parser.add_argument('--encoding', type=str, default='utf-8', help='Set the encoding for reading and writing files.')
 
+parser.add_argument("--bpe", type=bool, default=True)
+parser.add_argument("--vocabulary", type=str, metavar="PATH",
+                    help="Specify an explicit vocabulary file for the encoder.")
+
 parser.add_argument('--batch_size', metavar='SIZE', type=int, default=1, help='Batch size')
 parser.add_argument('--learning_rate', metavar='LR', type=float, default=0.00002, help='Learning rate for Adam')
 parser.add_argument('--accumulate_gradients', metavar='N', type=int, default=1, help='Accumulate gradients across N minibatches.')
@@ -83,7 +87,14 @@ def load_eval_dataset(enc, path, encoding=None):
 
 def main():
     args = parser.parse_args()
-    enc = encoder.get_encoder(args.model_name)
+
+    if args.bpe:
+        enc = encoder.get_encoder(args.model_name)
+    else:
+        with open(args.vocabulary, "r") as f:
+            vocab = json.load(f)
+        enc = encoder.DisabledEncoder(vocab)
+
     hparams = model.default_hparams()
     with open(os.path.join('models', args.model_name, 'hparams.json')) as f:
         hparams.override_from_dict(json.load(f))

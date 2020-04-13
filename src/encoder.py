@@ -93,7 +93,20 @@ class Encoder:
         self.cache[token] = word
         return word
 
+    def encode_to_strings(self, text):
+        """
+        Preprocess input text string. Returns list of token strings.
+        """
+        bpe_tokens = []
+        for token in re.findall(self.pat, text):
+            token = "".join(self.byte_encoder[b] for b in token.encode("utf-8"))
+            bpe_tokens.extend(self.bpe(token).split(" "))
+        return bpe_tokens
+
     def encode(self, text):
+        """
+        Preprocess input text string. Returns list of vocabulary IDs.
+        """
         bpe_tokens = []
         for token in re.findall(self.pat, text):
             token = ''.join(self.byte_encoder[b] for b in token.encode('utf-8'))
@@ -105,13 +118,33 @@ class Encoder:
         text = bytearray([self.byte_decoder[c] for c in text]).decode('utf-8', errors=self.errors)
         return text
 
-def get_encoder(model_name):
+
+class DisabledEncoder(Encoder):
+    """
+    Dummy encoder -- just splits on space.
+    """
+    def __init__(self, encoder_dict):
+        self.encoder_dict = encoder_dict
+        self.decoder_dict = {v: k for k, v in self.encoder_dict.items()}
+
+    def tokenize(self, text):
+        return text.split(" ")
+
+    def encode(self, text):
+        return [self.encoder_dict[token] for token in self.tokenize(text)]
+
+    def decode(self, token_ids):
+        return " ".join([self.decoder_dict[token_id] for token_id in token_ids])
+
+
+def get_encoder(model_name, encoder_cls=Encoder):
     with open(os.path.join('models', model_name, 'encoder.json'), 'r') as f:
         encoder = json.load(f)
     with open(os.path.join('models', model_name, 'vocab.bpe'), 'r', encoding="utf-8") as f:
         bpe_data = f.read()
     bpe_merges = [tuple(merge_str.split()) for merge_str in bpe_data.split('\n')[1:-1]]
-    return Encoder(
+
+    return encoder_cls(
         encoder=encoder,
         bpe_merges=bpe_merges,
     )
