@@ -31,7 +31,8 @@ parser.add_argument('--model_name', metavar='MODEL', type=str, default='117M', h
 parser.add_argument('--combine', metavar='CHARS', type=int, default=50000, help='Concatenate input files with <|endoftext|> separator into chunks of this minimum size')
 parser.add_argument('--encoding', type=str, default='utf-8', help='Set the encoding for reading and writing files.')
 
-parser.add_argument("--bpe", type=bool, default=True)
+parser.set_defaults(bpe=True)
+parser.add_argument("--no-bpe", dest="bpe", action="store_false")
 parser.add_argument("--vocabulary", type=str, metavar="PATH",
                     help="Specify an explicit vocabulary file for the encoder.")
 
