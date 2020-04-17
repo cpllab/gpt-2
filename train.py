@@ -85,10 +85,22 @@ def main():
         with open(args.vocabulary, "r") as f:
             vocab = json.load(f)
         enc = encoder.DisabledEncoder(vocab)
+    print(args.bpe, type(enc))
 
     hparams = model.default_hparams()
     with open(os.path.join('models', args.model_name, 'hparams.json')) as f:
         hparams.override_from_dict(json.load(f))
+
+    # Make sure encoder and hparams agree on vocabulary size.
+    if hparams.n_vocab != enc.vocab_size:
+        if args.restore_from == "fresh":
+            # Mismatch doesn't matter -- we're not using this model. Just
+            # impose the encoder's vocabulary size.
+            print("Updating hparams to use n_vocab = %i from encoder." % enc.vocab_size)
+            hparams.n_vocab = enc.vocab_size
+        else:
+            raise ValueError("Mismatched vocabulary sizes: %i in hparams; %i in encoder"
+                             % (hparams.n_vocab, enc.vocab_size))
 
     if args.sample_length > hparams.n_ctx:
         raise ValueError(

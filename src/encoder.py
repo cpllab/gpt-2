@@ -52,6 +52,10 @@ class Encoder:
         # Should haved added re.IGNORECASE so BPE merges can happen for capitalized versions of contractions
         self.pat = re.compile(r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
 
+    @property
+    def vocab_size(self):
+        return len(self.decoder)
+
     def bpe(self, token):
         if token in self.cache:
             return self.cache[token]
@@ -126,6 +130,10 @@ class DisabledEncoder(Encoder):
     def __init__(self, encoder_dict):
         self.encoder_dict = encoder_dict
         self.decoder_dict = {v: k for k, v in self.encoder_dict.items()}
+
+    @property
+    def vocab_size(self):
+        return len(self.decoder_dict)
 
     def tokenize(self, text):
         return text.split(" ")
