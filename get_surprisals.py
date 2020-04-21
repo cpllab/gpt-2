@@ -99,6 +99,12 @@ def main():
     with open(os.path.join('models', args.model_name, 'hparams.json')) as f:
         hparams.override_from_dict(json.load(f))
 
+    # Use encoder vocabulary size. Will crash if there is an encoder -- model
+    # mismatch.
+    if hparams.n_vocab != enc.vocab_size:
+        print("Updating hparams to use n_vocab = %i from encoder." % enc.vocab_size)
+        hparams.n_vocab = enc.vocab_size
+
     if args.sample_length > hparams.n_ctx:
         raise ValueError(
             "Can't get samples longer than window size: %s" % hparams.n_ctx)
