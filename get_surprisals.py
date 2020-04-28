@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# coding: utf-8
 # Usage:
 #  PYTHONPATH=src ./train --dataset <file|directory|glob>
 
@@ -29,7 +30,8 @@ parser.add_argument('--model_name', metavar='MODEL', type=str, default='117M', h
 parser.add_argument('--combine', metavar='CHARS', type=int, default=50000, help='Concatenate input files with <|endoftext|> separator into chunks of this minimum size')
 parser.add_argument('--encoding', type=str, default='utf-8', help='Set the encoding for reading and writing files.')
 
-parser.add_argument("--bpe", type=bool, default=True)
+parser.set_defaults(bpe=True)
+parser.add_argument("--no-bpe", dest="bpe", action="store_false")
 parser.add_argument("--vocabulary", type=str, metavar="PATH",
                     help="Specify an explicit vocabulary file for the encoder.")
 
@@ -302,7 +304,7 @@ def main():
             for sent in tqdm.tqdm(eval_sents):
                 logprobs_list.append(sess.run(val_logprobs, feed_dict={val_context: args.val_batch_size * [sent]})[0])
 
-            with open(args.fpath, 'w') as f:
+            with open(args.fpath, 'w', encoding="utf-8") as f:
                 # Write header.
                 f.write("sentence_id\ttoken_id\ttoken\tsurprisal\n")
 
