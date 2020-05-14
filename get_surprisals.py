@@ -5,6 +5,7 @@
 
 import argparse
 import json
+import logging
 import os
 import numpy as np
 import tensorflow as tf
@@ -19,6 +20,8 @@ import memory_saving_gradients
 
 CHECKPOINT_DIR = 'checkpoint'
 SAMPLE_DIR = 'samples'
+
+L = logging.getLogger(__name__)
 
 
 parser = argparse.ArgumentParser(
@@ -98,7 +101,6 @@ def main():
         with open(args.vocabulary, "r") as f:
             vocab = json.load(f)
         enc = encoder.DisabledEncoder(vocab)
-    print(enc, type(enc))
 
     hparams = model.default_hparams()
     with open(os.path.join('models', args.model_name, 'hparams.json')) as f:
@@ -107,7 +109,7 @@ def main():
     # Use encoder vocabulary size. Will crash if there is an encoder -- model
     # mismatch.
     if hparams.n_vocab != enc.vocab_size:
-        print("Updating hparams to use n_vocab = %i from encoder." % enc.vocab_size)
+        L.info("Updating hparams to use n_vocab = %i from encoder." % enc.vocab_size)
         hparams.n_vocab = enc.vocab_size
 
     if args.sample_length > hparams.n_ctx:
@@ -166,25 +168,11 @@ def main():
                 os.path.join('models', args.model_name))
         else:
             ckpt = tf.train.latest_checkpoint(args.restore_from)
-        print('Loading checkpoint', ckpt)
+        L.info('Loading checkpoint %s', ckpt)
         saver.restore(sess, ckpt)
 
-        print('batch size:', args.batch_size)
-
-        print('Loading dataset...')
-        print(args.dataset)
-        print(args.val_dataset)
-        # chunks = load_dataset(enc, args.dataset, args.combine, encoding=args.encoding)
-        # data_sampler = Sampler(chunks)
-        # if args.val_every > 0:
-        #     if args.val_dataset:
-        #         val_chunks = load_dataset(enc, args.val_dataset, args.combine, encoding=args.encoding)
-        #     else:
-        #         val_chunks = chunks
-        # print('dataset has', data_sampler.total_size, 'tokens')
-
         if args.eval_dataset:
-            print(args.eval_dataset)
+            L.info('Loading dataset...')
             eval_sents, eval_sent_toks = load_eval_dataset(enc, args.eval_dataset, encoding=args.encoding)
 
         counter = 1
@@ -196,11 +184,7 @@ def main():
                 counter = int(fp.read()) + 1
 
         def get_surprisals():
-            print('Get surprisals...')
-            # surprisals_list = []
-            # for sent in tqdm.tqdm(eval_sents):
-            #     surprisals_list.append(sess.run(val_surprisals, feed_dict={val_context: args.val_batch_size * [sent]})[0])
-
+            L.info('Get surprisals...')
             with open(args.fpath, 'w', encoding="utf-8") as f:
                 # Write header.
                 f.write("sentence_id\ttoken_id\ttoken\tsurprisal\n")
@@ -218,7 +202,7 @@ def main():
                         f.write("%i\t%i\t%s\t%f\n" % (sent_index + 1, token_index + 1, token, surprisal))
 
         def get_ppl():
-            print('Get perplexity...')
+            L.info('Get perplexity...')
             logprobs_list = []
             for sent in tqdm.tqdm(eval_sents):
                 logprobs_list.append(sess.run(val_logprobs, feed_dict={val_context: args.val_batch_size * [sent]})[0])
@@ -243,17 +227,10 @@ def main():
             return [data_sampler.sample(1024) for _ in range(args.batch_size)]
 
 
-        avg_loss = (0.0, 0.0)
-        start_time = time.time()
-
-        try:
-            if args.just_ppl:
-                get_ppl()
-            else:
-                get_surprisals()
-        except KeyboardInterrupt:
-            print('interrupted')
-            save()
+        if args.just_ppl:
+            get_ppl()
+        else:
+            get_surprisals()
 
 
 if __name__ == '__main__':
