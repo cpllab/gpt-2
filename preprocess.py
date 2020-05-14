@@ -12,7 +12,7 @@ import os
 
 from tqdm import tqdm
 
-from encoder import get_encoder
+from encoder import get_encoder, DisabledEncoder
 
 
 SPECIAL_TOKENS = ["<|endoftext|>"]
@@ -24,12 +24,23 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--model_name", type=str, required=True)
 parser.add_argument("--dataset", metavar="PATH", type=str, required=True)
 
+parser.set_defaults(bpe=True)
+parser.add_argument("--no-bpe", dest="bpe", action="store_false")
+parser.add_argument("--vocabulary", type="str", metavar="PATH",
+                    help="Specify an explicit vocabulary file for non-BPE encoders")
+
 parser.add_argument("-o", "--output", metavar="PATH", type=str, required=True,
                     help="Path to which to save preprocessed dataset.")
 
 
 def main(args):
-    encoder = get_encoder(args.model_name)
+    if args.bpe:
+        encoder = get_encoder(args.model_name)
+    else:
+        with open(args.vocabulary, "r") as f:
+            vocab = json.load(f)
+        # TODO handle UNKs
+        encoder = DisabledEncoder(vocab)
 
     with open(args.dataset, "r", encoding="utf-8") as f, \
             open(args.output, "w", encoding="utf-8") as outf:

@@ -136,6 +136,7 @@ class DisabledEncoder(Encoder):
         return len(self.decoder_dict)
 
     def tokenize(self, text):
+        # TODO handle unks
         return text.strip().replace("\n", " \n ").split(" ")
 
     encode_to_strings = tokenize
