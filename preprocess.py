@@ -21,12 +21,12 @@ parser = argparse.ArgumentParser(
         description="Preprocess the given dataset using the BPE encoder from a pretrained model.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-parser.add_argument("--model_name", type=str, required=True)
+parser.add_argument("--model_dir", type=str, required=True)
 parser.add_argument("--dataset", metavar="PATH", type=str, required=True)
 
 parser.set_defaults(bpe=True)
 parser.add_argument("--no-bpe", dest="bpe", action="store_false")
-parser.add_argument("--vocabulary", type="str", metavar="PATH",
+parser.add_argument("--vocabulary", type=str, metavar="PATH",
                     help="Specify an explicit vocabulary file for non-BPE encoders")
 
 parser.add_argument("-o", "--output", metavar="PATH", type=str, required=True,
@@ -35,7 +35,7 @@ parser.add_argument("-o", "--output", metavar="PATH", type=str, required=True,
 
 def main(args):
     if args.bpe:
-        encoder = get_encoder(args.model_name)
+        encoder = get_encoder(args.model_dir)
     else:
         with open(args.vocabulary, "r") as f:
             vocab = json.load(f)
