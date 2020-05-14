@@ -138,6 +138,8 @@ class DisabledEncoder(Encoder):
     def tokenize(self, text):
         return text.strip().replace("\n", " \n ").split(" ")
 
+    encode_to_strings = tokenize
+
     def encode(self, text):
         return [self.encoder_dict[token] for token in self.tokenize(text)]
 

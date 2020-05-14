@@ -85,7 +85,8 @@ def load_eval_dataset(enc, path, encoding=None):
     with open(path, 'r', encoding=encoding) as f:
         lines = f.readlines()
     enc_lines = [enc.encode(line.strip()) for line in lines]
-    return enc_lines
+    enc_line_toks = [enc.encode_to_strings(line.strip()) for line in lines]
+    return enc_lines, enc_line_toks
 
 
 def main():
@@ -140,8 +141,9 @@ def main():
         if args.eval:
             # val_context = tf.placeholder(tf.int32, [args.val_batch_size, None])
             # val_output = model.model(hparams=hparams, X=val_context)
-            val_logprobs = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            val_logprobs = -tf.nn.sparse_softmax_cross_entropy_with_logits(
                     labels=val_context[:, 1:], logits=val_output['logits'][:, :-1])
+            val_surprisals = -(val_logprobs / np.log(2))
 
         all_vars = [v for v in tf.trainable_variables() if 'model' in v.name]
         train_vars = [v for v in all_vars if '/h' in v.name] if args.only_train_transformer_layers else all_vars
@@ -183,7 +185,7 @@ def main():
 
         if args.eval_dataset:
             print(args.eval_dataset)
-            eval_sents = load_eval_dataset(enc, args.eval_dataset, encoding=args.encoding)
+            eval_sents, eval_sent_toks = load_eval_dataset(enc, args.eval_dataset, encoding=args.encoding)
 
         counter = 1
         counter_path = os.path.join(args.checkpoint_dir, args.run_name, 'counter')
@@ -195,40 +197,25 @@ def main():
 
         def get_surprisals():
             print('Get surprisals...')
-            logprobs_list = []
-            for sent in tqdm.tqdm(eval_sents):
-                logprobs_list.append(sess.run(val_logprobs, feed_dict={val_context: args.val_batch_size * [sent]})[0])
+            # surprisals_list = []
+            # for sent in tqdm.tqdm(eval_sents):
+            #     surprisals_list.append(sess.run(val_surprisals, feed_dict={val_context: args.val_batch_size * [sent]})[0])
 
             with open(args.fpath, 'w', encoding="utf-8") as f:
                 # Write header.
                 f.write("sentence_id\ttoken_id\ttoken\tsurprisal\n")
 
-                for sent_index, sent in enumerate(eval_sents):
-                    words = enc.decode(sent).split()
+                for sent_index, (sent_ids, sent_tokens) in enumerate(zip(tqdm.tqdm(eval_sents), eval_sent_toks)):
+                    # Get underlying tokens -- first move back to natural
+                    # string, then to encoded tokens.
+                    surprisals = sess.run(val_surprisals, feed_dict={val_context: args.val_batch_size * [sent_ids]})[0]
+                    assert len(sent_tokens) == len(surprisals) + 1
 
-                    # for token_index, token in enumerate(sent):
-                    #     if token_index == 0:
-                    #         f.write(str(sent_index+1)+'\t'+str(token_index+1)+'\t'+enc.decode([token])+'\t0.0\n')
-                    #     else:
-                    #         f.write(str(sent_index+1)+'\t'+str(token_index+1)+'\t'+enc.decode([token])+'\t'+str(-np.log2(np.exp(-logprobs_list[sent_index][token_index-1])))+'\n')
+                    # NA surprisal for first token
+                    surprisals = np.concatenate([[0.], surprisals])
 
-                    surprisals = []
-                    token_concat = ''
-                    surprisal_sum = 0
-                    word_index = 0
-                    for token_index, token in enumerate(sent):
-                        # print(token_concat)
-                        token_concat += enc.decode([token]).strip()
-
-                        if token_index > 0:
-                            surprisal_sum += -np.log2(np.exp(-logprobs_list[sent_index][token_index-1]))
-                        if token_concat == words[word_index]:
-                            f.write(str(sent_index+1)+'\t'+str(word_index+1)+'\t'+words[word_index]+'\t'+str(surprisal_sum)+'\n')
-                            token_concat = ''
-                            surprisal_sum = 0
-                            word_index += 1
-                    # print(word_index, len(words))
-                    assert word_index == len(words)
+                    for token_index, (token, surprisal) in enumerate(zip(sent_tokens, surprisals)):
+                        f.write("%i\t%i\t%s\t%f\n" % (sent_index + 1, token_index + 1, token, surprisal))
 
         def get_ppl():
             print('Get perplexity...')
