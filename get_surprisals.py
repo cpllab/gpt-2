@@ -143,51 +143,8 @@ def main():
             val_logprobs = tf.nn.sparse_softmax_cross_entropy_with_logits(
                     labels=val_context[:, 1:], logits=val_output['logits'][:, :-1])
 
-
-
-        tf_sample = sample.sample_sequence(
-            hparams=hparams,
-            length=args.sample_length,
-            context=context,
-            batch_size=args.batch_size,
-            temperature=1.0,
-            top_k=args.top_k,
-            top_p=args.top_p)
-
         all_vars = [v for v in tf.trainable_variables() if 'model' in v.name]
         train_vars = [v for v in all_vars if '/h' in v.name] if args.only_train_transformer_layers else all_vars
-
-        if args.optimizer == 'adam':
-            opt = tf.train.AdamOptimizer(learning_rate=args.learning_rate)
-        elif args.optimizer == 'sgd':
-            opt = tf.train.GradientDescentOptimizer(learning_rate=args.learning_rate)
-        else:
-            exit('Bad optimizer:', args.optimizer)
-
-        if args.accumulate_gradients > 1:
-            if args.memory_saving_gradients:
-                exit("Memory saving gradients are not implemented for gradient accumulation yet.")
-            opt = AccumulatingOptimizer(
-                opt=opt,
-                var_list=train_vars)
-            opt_reset = opt.reset()
-            opt_compute = opt.compute_gradients(loss)
-            opt_apply = opt.apply_gradients()
-            summary_loss = tf.summary.scalar('loss', opt_apply)
-        else:
-            if args.memory_saving_gradients:
-                opt_grads = memory_saving_gradients.gradients(loss, train_vars)
-            else:
-                opt_grads = tf.gradients(loss, train_vars)
-            opt_grads = list(zip(opt_grads, train_vars))
-            opt_apply = opt.apply_gradients(opt_grads)
-            summary_loss = tf.summary.scalar('loss', loss)
-
-        summary_lr = tf.summary.scalar('learning_rate', args.learning_rate)
-        summaries = tf.summary.merge([summary_lr, summary_loss])
-
-        summary_log = tf.summary.FileWriter(
-            os.path.join(args.checkpoint_dir, args.run_name))
 
         saver = tf.train.Saver(
             var_list=all_vars,
@@ -228,19 +185,6 @@ def main():
             print(args.eval_dataset)
             eval_sents = load_eval_dataset(enc, args.eval_dataset, encoding=args.encoding)
 
-        # for sent in eval_sents[:5]:
-        #     print(enc.decode(sent))
-
-        # print('Training...')
-
-        # if args.val_every > 0:
-        #     # Sample from validation set once with fixed seed to make
-        #     # it deterministic during training as well as across runs.
-        #     val_data_sampler = Sampler(val_chunks, seed=1)
-        #     val_batches = [[val_data_sampler.sample(1024) for _ in range(args.val_batch_size)]
-        #                    for _ in range(args.val_batch_count)]
-        #     print(len(val_batches), 'val batches')
-
         counter = 1
         counter_path = os.path.join(args.checkpoint_dir, args.run_name, 'counter')
         if os.path.exists(counter_path):
@@ -248,57 +192,6 @@ def main():
             # Add 1 so we don't immediately try to save again
             with open(counter_path, 'r') as fp:
                 counter = int(fp.read()) + 1
-
-        def save():
-            maketree(os.path.join(args.checkpoint_dir, args.run_name))
-            print(
-                'Saving',
-                os.path.join(args.checkpoint_dir, args.run_name,
-                             'model-{}').format(counter))
-            saver.save(
-                sess,
-                os.path.join(args.checkpoint_dir, args.run_name, 'model'),
-                global_step=counter)
-            with open(counter_path, 'w') as fp:
-                fp.write(str(counter) + '\n')
-
-        def generate_samples():
-            print('Generating samples...')
-            context_tokens = data_sampler.sample(1)
-            all_text = []
-            index = 0
-            while index < args.sample_num:
-                out = sess.run(
-                    tf_sample,
-                    feed_dict={context: args.batch_size * [context_tokens]})
-                for i in range(min(args.sample_num - index, args.batch_size)):
-                    text = enc.decode(out[i])
-                    text = '======== SAMPLE {} ========\n{}\n'.format(
-                        index + 1, text)
-                    all_text.append(text)
-                    index += 1
-            print(text)
-            maketree(os.path.join(SAMPLE_DIR, args.run_name))
-            with open(
-                    os.path.join(SAMPLE_DIR, args.run_name,
-                                 'samples-{}').format(counter), 'w', encoding=args.encoding) as fp:
-                fp.write('\n'.join(all_text))
-
-        def validation():
-            print('Calculating validation loss...')
-            losses = []
-            for batch in tqdm.tqdm(val_batches):
-                losses.append(sess.run(val_loss, feed_dict={val_context: batch}))
-            v_val_loss = np.mean(losses)
-            v_summary = sess.run(val_loss_summary, feed_dict={val_loss: v_val_loss})
-            summary_log.add_summary(v_summary, counter)
-            summary_log.flush()
-            print(
-                '[{counter} | {time:2.2f}] validation loss = {loss:2.2f}'
-                .format(
-                    counter=counter,
-                    time=time.time() - start_time,
-                    loss=v_val_loss))
 
         def get_surprisals():
             print('Get surprisals...')
@@ -367,40 +260,6 @@ def main():
         start_time = time.time()
 
         try:
-            # while True:
-            #     if counter % args.save_every == 0:
-            #         save()
-            #     if counter % args.sample_every == 0:
-            #         generate_samples()
-            #     if args.val_every > 0 and (counter % args.val_every == 0 or counter == 1):
-            #         validation()
-
-            #     if args.accumulate_gradients > 1:
-            #         sess.run(opt_reset)
-            #         for _ in range(args.accumulate_gradients):
-            #             sess.run(
-            #                 opt_compute, feed_dict={context: sample_batch()})
-            #         (v_loss, v_summary) = sess.run((opt_apply, summaries))
-            #     else:
-            #         (_, v_loss, v_summary) = sess.run(
-            #             (opt_apply, loss, summaries),
-            #             feed_dict={context: sample_batch()})
-
-            #     # summary_log.add_summary(v_summary, counter)
-
-            #     # avg_loss = (avg_loss[0] * 0.99 + v_loss,
-            #     #             avg_loss[1] * 0.99 + 1.0)
-
-            #     # print(
-            #     #     '[{counter} | {time:2.2f}] loss={loss:2.2f} avg={avg:2.2f}'
-            #     #     .format(
-            #     #         counter=counter,
-            #     #         time=time.time() - start_time,
-            #     #         loss=v_loss,
-            #     #         avg=avg_loss[0] / avg_loss[1]))
-
-            #     counter += 1
-            # validation()
             if args.just_ppl:
                 get_ppl()
             else:
