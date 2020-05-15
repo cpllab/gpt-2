@@ -45,7 +45,7 @@ def main(args):
     with open(args.dataset, "r", encoding="utf-8") as f, \
             open(args.output, "w", encoding="utf-8") as outf:
         for line in f:
-            outf.write(" ".join(encoder.encode_to_strings(line)) + "\n")
+            outf.write(" ".join(encoder.encode_to_strings(line.strip())) + "\n")
 
 
 if __name__ == "__main__":
