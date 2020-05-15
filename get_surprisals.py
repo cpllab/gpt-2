@@ -116,6 +116,10 @@ def main():
                 f.write("sentence_id\ttoken_id\ttoken\tsurprisal\n")
 
                 for sent_index, (sent_ids, sent_tokens) in enumerate(zip(tqdm.tqdm(eval_sents), eval_sent_toks)):
+                    if len(sent_ids) == 0 and len(sent_tokens) == 0:
+                        # Empty sentence line. Skip.
+                        continue
+
                     # Get underlying tokens -- first move back to natural
                     # string, then to encoded tokens.
                     surprisals = sess.run(val_surprisals, feed_dict={val_context: args.batch_size * [sent_ids]})[0]
