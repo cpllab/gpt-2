@@ -4,17 +4,17 @@
 #  PYTHONPATH=src ./train --dataset <file|directory|glob>
 
 import argparse
-import json
 import logging
 import os
 import numpy as np
 import tensorflow as tf
-import time
 import tqdm
+
 from tensorflow.core.protobuf import rewriter_config_pb2
 
-import model, sample, encoder
-from load_dataset import load_dataset, Sampler
+import model
+from load_dataset import load_dataset
+from utils import load_hparams, load_encoder
 
 
 L = logging.getLogger(__name__)
@@ -27,11 +27,6 @@ parser = argparse.ArgumentParser(
 parser.add_argument('--combine', metavar='CHARS', type=int, default=50000, help='Concatenate input files with <|endoftext|> separator into chunks of this minimum size')
 parser.add_argument('--encoding', type=str, default='utf-8', help='Set the encoding for reading and writing files.')
 parser.add_argument("--batch_size", type=int, default=1)
-
-parser.set_defaults(bpe=True)
-parser.add_argument("--no-bpe", dest="bpe", action="store_false")
-parser.add_argument("--vocabulary", type=str, metavar="PATH",
-                    help="Specify an explicit vocabulary file for the encoder.")
 
 parser.add_argument("--model_dir", type=str, default="/opt/gpt-2/model")
 parser.add_argument('--dataset', metavar='PATH', type=str, required=True, help='Dataset for evaluation.')
@@ -67,22 +62,11 @@ def load_eval_dataset(enc, path, encoding=None):
 def main():
     args = parser.parse_args()
 
-    if args.bpe:
-        enc = encoder.get_encoder(args.model_dir)
-    else:
-        with open(args.vocabulary, "r") as f:
-            vocab = json.load(f)
-        enc = encoder.DisabledEncoder(vocab)
+    hparams = load_hparams(args.model_dir)
+    enc = load_encoder(args.model_dir, hparams)
 
-    hparams = model.default_hparams()
-    with open(os.path.join(args.model_dir, 'hparams.json')) as f:
-        hparams.override_from_dict(json.load(f))
-
-    # Use encoder vocabulary size. Will crash if there is an encoder -- model
-    # mismatch.
-    if hparams.n_vocab != enc.vocab_size:
-        L.info("Updating hparams to use n_vocab = %i from encoder." % enc.vocab_size)
-        hparams.n_vocab = enc.vocab_size
+    assert hparams.n_vocab == enc.vocab_size, \
+            "Stated vocab size in hparams should match encoder vocab size"
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
