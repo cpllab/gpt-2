@@ -6,7 +6,7 @@ Preprocess the given dataset using the BPE encoder from a pretrained model.
 
 import argparse
 
-from utils import load_encoder
+from utils import load_encoder, load_hparams
 
 
 parser = argparse.ArgumentParser(
@@ -21,7 +21,8 @@ parser.add_argument("-o", "--output", metavar="PATH", type=str, required=True,
 
 
 def main(args):
-    encoder = load_encoder(args.model_dir)
+    hparams = load_hparams(args.model_dir)
+    encoder = load_encoder(args.model_dir, hparams)
 
     with open(args.dataset, "r", encoding="utf-8") as f, \
             open(args.output, "w", encoding="utf-8") as outf:
