@@ -22,9 +22,9 @@ def load_encoder(model_dir, hparams):
     """
     Load a model ``Encoder`` from the given checkpoint directory.
     """
-    if hparams["encoder"] == "bpe":
+    if hparams.encoder == "bpe":
         enc = encoder.get_encoder(model_dir)
-    elif hparams["encoder"] == "word":
+    elif hparams.encoder == "word":
         vocabulary_path = os.path.join(model_dir, "encoder.json")
         with open(vocab_path, "r", encoding="utf-8") as f:
             vocabulary = json.load(f)
