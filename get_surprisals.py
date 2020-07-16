@@ -21,7 +21,7 @@ L = logging.getLogger(__name__)
 
 
 parser = argparse.ArgumentParser(
-    description='Fine-tune GPT-2 on your custom dataset.',
+    description='Extract word-level surprisals for novel text data.',
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 parser.add_argument('--combine', metavar='CHARS', type=int, default=50000, help='Concatenate input files with <|endoftext|> separator into chunks of this minimum size')
@@ -30,7 +30,7 @@ parser.add_argument("--batch_size", type=int, default=1)
 
 parser.add_argument("--model_dir", type=str, default="/opt/gpt-2/model")
 parser.add_argument('--dataset', metavar='PATH', type=str, required=True, help='Dataset for evaluation.')
-parser.add_argument('--fpath', type=str, default=None, help='Path to write surprisals of evaluation data to file')
+parser.add_argument('--fpath', type=str, required=True, help='Path to write surprisals of evaluation data to file')
 
 parser.add_argument("--just_ppl", default=False, action="store_true")
 

@@ -90,13 +90,18 @@ def attn(x, scope, n_state, *, past, hparams):
 
     def multihead_attn(q, k, v):
         # q, k, v have shape [batch, heads, sequence, features]
+        # so w is of dimension [batch, heads, sequence, sequence]
         w = tf.matmul(q, k, transpose_b=True)
-        print(tf.shape(w))
         w = w * tf.rsqrt(tf.cast(v.shape[-1].value, w.dtype))
 
+        # For each timestep t, attention weights >= t should be zeroed out.
         w = mask_attn_weights(w)
+        # Convert attention weights to a distribution.
         w = softmax(w)
+
+        # Yields a tensor [batch, heads, sequence, features]
         a = tf.matmul(w, v)
+
         return a
 
     with tf.variable_scope(scope):
@@ -115,9 +120,12 @@ def attn(x, scope, n_state, *, past, hparams):
 
         # Compute attention head values
         a = multihead_attn(q, k, v)
+
+        # Un-nest individual attention heads into one concatenated vector.
+        # Yields a tensor [batch, sequence, heads * features]
         a = merge_heads(a)
 
-        # Down-project to d dimensions once more
+        # One final 1D convolution
         a = conv1d(a, 'c_proj', n_state)
 
         return a, present
