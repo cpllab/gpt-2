@@ -91,6 +91,7 @@ def attn(x, scope, n_state, *, past, hparams):
     def multihead_attn(q, k, v):
         # q, k, v have shape [batch, heads, sequence, features]
         w = tf.matmul(q, k, transpose_b=True)
+        print(tf.shape(w))
         w = w * tf.rsqrt(tf.cast(v.shape[-1].value, w.dtype))
 
         w = mask_attn_weights(w)
@@ -99,16 +100,26 @@ def attn(x, scope, n_state, *, past, hparams):
         return a
 
     with tf.variable_scope(scope):
+        # Compute query, key, and value vectors for each timestep
         c = conv1d(x, 'c_attn', n_state*3)
+
+        # Separate into individual variables, and nest so that each matrix is
+        # of dimension batch_size * n_heads * n_ctx * d
         q, k, v = map(split_heads, tf.split(c, 3, axis=2))
+
         present = tf.stack([k, v], axis=1)
         if past is not None:
             pk, pv = tf.unstack(past, axis=1)
             k = tf.concat([pk, k], axis=-2)
             v = tf.concat([pv, v], axis=-2)
+
+        # Compute attention head values
         a = multihead_attn(q, k, v)
         a = merge_heads(a)
+
+        # Down-project to d dimensions once more
         a = conv1d(a, 'c_proj', n_state)
+
         return a, present
 
 
@@ -121,11 +132,23 @@ def mlp(x, scope, n_state, *, hparams):
 
 
 def block(x, scope, *, past, hparams):
+    """
+    Compute a single Transformer decoder block over the given embeddings.
+
+    Args:
+        x: `batch_size * n_ctx * d`-dimensional tensor
+    """
     with tf.variable_scope(scope):
+        # embedding dimension
         nx = x.shape[-1].value
+
+        # Compute attention block
         a, present = attn(norm(x, 'ln_1'), 'attn', nx, past=past, hparams=hparams)
+        # Residual connection
         x = x + a
+        # Compute feed-forward block
         m = mlp(norm(x, 'ln_2'), 'mlp', nx*4, hparams=hparams)
+        # Residual connection
         x = x + m
         return x, present
 
@@ -145,15 +168,24 @@ def positions_for(tokens, past_length):
 
 
 def model(hparams, X, past=None, scope='model', reuse=tf.AUTO_REUSE):
+    """
+    Args:
+        X: `batch_size * n_ctx`-dimensional tensor of embedding indices
+    """
     with tf.variable_scope(scope, reuse=reuse):
         results = {}
         batch, sequence = shape_list(X)
 
+        # Positional embeddings: learn one per possible context
         wpe = tf.get_variable('wpe', [hparams.n_ctx, hparams.n_embd],
                              initializer=tf.random_normal_initializer(stddev=0.01))
+        # Vocabulary embeddings: learn one per token
         wte = tf.get_variable('wte', [hparams.n_vocab, hparams.n_embd],
                              initializer=tf.random_normal_initializer(stddev=0.02))
+
         past_length = 0 if past is None else tf.shape(past)[-2]
+
+        # Compute position-sensitive word representations
         h = tf.gather(wte, X) + tf.gather(wpe, positions_for(X, past_length))
 
         # Transformer
@@ -161,15 +193,22 @@ def model(hparams, X, past=None, scope='model', reuse=tf.AUTO_REUSE):
         pasts = tf.unstack(past, axis=1) if past is not None else [None] * hparams.n_layer
         assert len(pasts) == hparams.n_layer
         for layer, past in enumerate(pasts):
+            # Compute Transformer block for this layer.
             h, present = block(h, 'h%d' % layer, past=past, hparams=hparams)
             if layer == 10:
                 tf.add_to_collection('checkpoints', h)
+
             presents.append(present)
+
         results['present'] = tf.stack(presents, axis=1)
+
+        # Final layer normalization.
         h = norm(h, 'ln_f')
 
         # Language model loss.  Do tokens <n predict token n?
         h_flat = tf.reshape(h, [batch*sequence, hparams.n_embd])
+        # Compute logits over vocabulary -- here logit weights are tied with
+        # token embedding weights
         logits = tf.matmul(h_flat, wte, transpose_b=True)
         logits = tf.reshape(logits, [batch, sequence, hparams.n_vocab])
         results['logits'] = logits
