@@ -4,6 +4,7 @@ from tensorflow.contrib.training import HParams
 
 def default_hparams():
     return HParams(
+        encoder="bpe",
         n_vocab=0,
         n_ctx=1024,
         n_embd=768,

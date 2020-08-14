@@ -80,7 +80,7 @@ def main():
     args = parser.parse_args()
 
     if args.bpe:
-        enc = encoder.get_encoder(args.model_name)
+        enc = encoder.get_encoder(os.path.join("models", args.model_name))
     else:
         with open(args.vocabulary, "r") as f:
             vocab = json.load(f)
