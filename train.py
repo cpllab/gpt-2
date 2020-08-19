@@ -3,6 +3,7 @@
 #  PYTHONPATH=src ./train --dataset <file|directory|glob>
 
 import argparse
+from collections import Counter
 import json
 import os
 import sys
@@ -197,6 +198,10 @@ def main():
             print('Loading checkpoint', ckpt)
             saver.restore(sess, ckpt)
 
+        # Prepare a `Counter` for tracking the frequency of each individual
+        # token seen so far in training samples.
+        token_frequencies = Counter()
+
         print('Loading dataset...')
         chunks = load_dataset(enc, args.dataset, args.combine, encoding=args.encoding)
         data_sampler = Sampler(chunks)
@@ -235,6 +240,13 @@ def main():
                 global_step=counter)
             with open(counter_path, 'w') as fp:
                 fp.write(str(counter) + '\n')
+
+            # TODO: Save frequency counter to `CHECKPOINT_DIR`. use the
+            # `counter` variable in the filename so that we have one file per
+            # checkpoint
+            token_frequency_csv = pd.DataFrame.from_dict(token_frequencies, orient="index")
+            print(token_frequency_csv)
+
 
         def generate_samples():
             print('Generating samples...')
@@ -297,9 +309,21 @@ def main():
                             opt_compute, feed_dict={context: sample_batch()})
                     (v_loss, v_summary) = sess.run((opt_apply, summaries))
                 else:
+                    # Draw a batch of sentences. This is a matrix of token
+                    # indices, shaped (batch_size * context_size)
+                    training_batch = sample_batch()
+
+                    # TODO: Calculate token frequencies for this batch by
+                    # iterating over the contents of `training_batch`.
+                    this_batch_frequencies = ...
+
+                    # Merge frequencies with the global counter.
+                    token_frequencies += this_batch_frequencies
+
+                    # Run parameter update.
                     (_, v_loss, v_summary) = sess.run(
                         (opt_apply, loss, summaries),
-                        feed_dict={context: sample_batch()})
+                        feed_dict={context: training_batch})
 
                 summary_log.add_summary(v_summary, counter)
 
