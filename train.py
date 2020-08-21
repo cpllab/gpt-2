@@ -244,8 +244,16 @@ def main():
             # TODO: Save frequency counter to `CHECKPOINT_DIR`. use the
             # `counter` variable in the filename so that we have one file per
             # checkpoint
-            token_frequency_csv = pd.DataFrame.from_dict(token_frequencies, orient="index")
-            print(token_frequency_csv)
+            #token_frequency_csv = pd.DataFrame.from_dict(token_frequencies, orient="index")
+            #csv)
+            name_of_file = str(counter)
+
+            completeName = os.path.join(CHECKPOINT_DIR, args.run_name, "freq_counter"+ name_of_file+".txt"),
+                global_step=counter)         
+                
+            with csv.writer(completeName) as writer:
+                for key, count in token_frequency.iteritems(): #De-dent this block
+                    writer.writerow([key,count]) #Output both the key and the count
 
 
         def generate_samples():
@@ -315,11 +323,10 @@ def main():
 
                     # TODO: Calculate token frequencies for this batch by
                     # iterating over the contents of `training_batch`.
-                    this_batch_frequencies = ...
-
+                    np.flatten(training_batch)
+                    this_batch_frequencies = Counter(training_batch)
                     # Merge frequencies with the global counter.
                     token_frequencies += this_batch_frequencies
-
                     # Run parameter update.
                     (_, v_loss, v_summary) = sess.run(
                         (opt_apply, loss, summaries),
