@@ -43,6 +43,7 @@ parser.add_argument('--memory_saving_gradients', default=False, action='store_tr
 parser.add_argument('--only_train_transformer_layers', default=False, action='store_true', help='Restrict training to the transformer blocks.')
 parser.add_argument('--optimizer', type=str, default='adam', help='Optimizer. <adam|sgd>.')
 parser.add_argument('--noise', type=float, default=0.0, help='Add noise to input training data to regularize against typos.')
+parser.add_argument('--random_seed', type=int, help='Random seed for parameter initializations')
 
 parser.add_argument('--top_k', type=int, default=40, help='K for top-k sampling.')
 parser.add_argument('--top_p', type=float, default=0.0, help='P for top-p sampling. Overrides top_k if set > 0.')
@@ -110,6 +111,11 @@ def main():
         args.memory_saving_gradients = True
         if args.optimizer == 'adam':
             args.only_train_transformer_layers = True
+
+    # Initialize RNG with seed.
+    random_seed = args.random_seed or int(time.time())
+    print("Initializing with random seed", random_seed)
+    tf.set_random_seed(random_seed)
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
